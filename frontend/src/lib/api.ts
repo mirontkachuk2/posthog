@@ -76,6 +76,7 @@ import {
     BatchExportRun,
     BatchExportService,
     CohortType,
+    CohortUsedInResponse,
     CommentCreationParams,
     CommentType,
     Conversation,
@@ -849,6 +850,10 @@ export class ApiRequest {
 
     public cohortsCalculationHistory(cohortId: CohortType['id'], teamId?: TeamType['id']): ApiRequest {
         return this.cohortsDetail(cohortId, teamId).addPathComponent('calculation_history')
+    }
+
+    public cohortsUsedIn(cohortId: CohortType['id'], teamId?: TeamType['id']): ApiRequest {
+        return this.cohortsDetail(cohortId, teamId).addPathComponent('used_in')
     }
 
     // # Customer Profile Configs
@@ -3351,6 +3356,11 @@ const api = {
         async removePersonFromCohort(cohortId: CohortType['id'], personId: string): Promise<{ success: boolean }> {
             const payload = { person_id: personId }
             return await new ApiRequest().cohortsRemovePersonFromStatic(cohortId).update({ data: payload })
+        },
+        async getUsedIn(
+            cohortId: CohortType['id']
+        ): Promise<CohortUsedInResponse> {
+            return await new ApiRequest().cohortsUsedIn(cohortId).get()
         },
         async getCalculationHistory(cohortId: CohortType['id']): Promise<CohortCalculationHistoryResponse> {
             return await new ApiRequest().cohortsCalculationHistory(cohortId).get()

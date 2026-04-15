@@ -54,6 +54,7 @@ import {
     CohortCriteriaGroupFilter,
     CohortGroupType,
     CohortType,
+    CohortUsedInResponse,
     FilterLogicalOperator,
     PropertyDefinitionType,
     PropertyFilterType,
@@ -614,6 +615,7 @@ export const cohortEditLogic = kea<cohortEditLogicType>([
                 },
             },
         ],
+
     })),
     listeners(({ actions, values }) => ({
         setCriteria: ({ newCriteria, groupIndex, criteriaIndex }) => {
