@@ -1180,29 +1180,10 @@ class CohortSerializer(serializers.ModelSerializer):
         return representation
 
 
-def _truncate_used_in_queryset(qs: QuerySet) -> tuple[list[dict], int]:
-    """Return up to COHORT_USED_IN_PAGE_SIZE rows plus the total count.
-
-    Fetches one row past the cap so the common short-list case derives the total
-    from the page itself; the expensive predicate only runs a second time (via
-    ``count()``) when the cap is actually exceeded.
-    """
-    page = list(qs[: COHORT_USED_IN_PAGE_SIZE + 1])
-    if len(page) <= COHORT_USED_IN_PAGE_SIZE:
-        return page, len(page)
-    return page[:COHORT_USED_IN_PAGE_SIZE], qs.count()
-
-
-def get_active_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
-    """Return active, non-deleted feature flags that reference this cohort.
-
-    Used by deletion protection — only live flags should block cohort deletion.
-    """
-    active_flags = FeatureFlag.objects.filter(
-        team__project_id=cohort.team.project_id, active=True, deleted=False
-    ).select_related("team")
-    seen_cohorts_cache: dict[int, CohortOrEmpty] = {}
-    return [flag for flag in active_flags if cohort.id in flag.get_cohort_ids(seen_cohorts_cache=seen_cohorts_cache)]
+def get_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
+    """Return active feature flags that reference this cohort in their targeting conditions."""
+    active_flags = FeatureFlag.objects.filter(team__project_id=cohort.team.project_id, active=True)
+    return [flag for flag in active_flags if cohort.id in flag.get_cohort_ids()]
 
 
 def get_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
@@ -1215,6 +1196,22 @@ def get_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
     flags = FeatureFlag.objects.filter(team__project_id=cohort.team.project_id, deleted=False).select_related("team")
     seen_cohorts_cache: dict[int, CohortOrEmpty] = {}
     return [flag for flag in flags if cohort.id in flag.get_cohort_ids(seen_cohorts_cache=seen_cohorts_cache)]
+
+
+def get_insights_using_cohort(cohort: Cohort) -> QuerySet[Insight]:
+    """Return insights that reference this cohort in their query filters or breakdown."""
+    # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (parameterized via params)
+    return Insight.objects.filter(
+        team_id=cohort.team_id,
+        deleted=False,
+    ).extra(
+        where=[
+            """jsonb_path_exists(query, '$.** ? (@.type == "cohort" && @.value == %s)', '{"cohort_id": %s}'::jsonb)
+            OR (query->'source'->'breakdownFilter'->>'breakdown_type' = 'cohort'
+                AND query->'source'->'breakdownFilter'->'breakdown' @> '[%s]'::jsonb)"""
+        ],
+        params=[cohort.id, cohort.id, cohort.id],
+    )
 
 
 def get_insights_using_cohort(cohort: Cohort) -> QuerySet[Insight]:
@@ -1239,6 +1236,24 @@ def get_insights_using_cohort(cohort: Cohort) -> QuerySet[Insight]:
 
 def get_cohorts_using_cohort(cohort: Cohort) -> QuerySet[Cohort]:
     """Return other cohorts that include this cohort as criteria."""
+    # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (parameterized via params)
+    return (
+        Cohort.objects.filter(
+            team__project_id=cohort.team.project_id,
+            deleted=False,
+        )
+        .exclude(id=cohort.id)
+        .extra(
+            where=[
+                """jsonb_path_exists(filters, '$.** ? (@.type == "cohort" && @.value == %s)', '{"cohort_id": %s}'::jsonb)"""
+            ],
+            params=[cohort.id, cohort.id],
+        )
+    )
+
+
+def get_cohorts_using_cohort(cohort: Cohort) -> QuerySet[Cohort]:
+    """Return other cohorts that include this cohort as criteria."""
     return (
         # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (parameterized via params)
         Cohort.objects.filter(
@@ -1254,6 +1269,31 @@ def get_cohorts_using_cohort(cohort: Cohort) -> QuerySet[Cohort]:
         )
         .order_by("id")
     )
+
+
+def _truncate_used_in_queryset(qs: QuerySet) -> tuple[list[dict], int]:
+    """Return up to COHORT_USED_IN_PAGE_SIZE rows plus the total count.
+
+    Fetches one row past the cap so the common short-list case derives the total
+    from the page itself; the expensive predicate only runs a second time (via
+    ``count()``) when the cap is actually exceeded.
+    """
+    page = list(qs[: COHORT_USED_IN_PAGE_SIZE + 1])
+    if len(page) <= COHORT_USED_IN_PAGE_SIZE:
+        return page, len(page)
+    return page[:COHORT_USED_IN_PAGE_SIZE], qs.count()
+
+
+def get_active_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
+    """Return active, non-deleted feature flags that reference this cohort.
+
+    Used by deletion protection — only live flags should block cohort deletion.
+    """
+    active_flags = FeatureFlag.objects.filter(
+        team__project_id=cohort.team.project_id, active=True, deleted=False
+    ).select_related("team")
+    seen_cohorts_cache: dict[int, CohortOrEmpty] = {}
+    return [flag for flag in active_flags if cohort.id in flag.get_cohort_ids(seen_cohorts_cache=seen_cohorts_cache)]
 
 
 @extend_schema_view(
