@@ -54,13 +54,15 @@ import {
     CohortCriteriaGroupFilter,
     CohortGroupType,
     CohortType,
-    CohortUsedInResponse,
     FilterLogicalOperator,
     PropertyDefinitionType,
     PropertyFilterType,
     PropertyOperator,
     PropertyType,
 } from '~/types'
+
+import { cohortsUsedInRetrieve } from 'products/cohorts/frontend/generated/api'
+import type { CohortUsedInResponseApi } from 'products/cohorts/frontend/generated/api.schemas'
 
 import { cohortsUsedInRetrieve } from 'products/cohorts/frontend/generated/api'
 import type { CohortUsedInResponseApi } from 'products/cohorts/frontend/generated/api.schemas'
@@ -662,6 +664,9 @@ export const cohortEditLogic = kea<cohortEditLogicType>([
                 fallbackErrorMessage:
                     'There was an error submitting this cohort. Make sure the cohort filters are correct.',
             })
+        },
+        submitCohortSuccess: () => {
+            actions.loadUsedIn()
         },
         // Refresh once the save request actually resolves; submitCohortSuccess fires as soon
         // as the synchronous submit handler dispatches saveCohort.
