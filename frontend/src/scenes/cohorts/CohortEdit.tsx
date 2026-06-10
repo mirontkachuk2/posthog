@@ -98,13 +98,13 @@ function UsedInBanner({ usedIn }: { usedIn: CohortUsedInResponseApi }): JSX.Elem
                             {title}
                             {block.has_more && ` (${block.results.length} of ${block.total} shown)`}
                         </h5>
-                        <div className="space-y-2">
+                        <ul className="list-disc pl-4 mb-0 space-y-0.5">
                             {items.map(({ key, url, label }) => (
                                 <li key={key}>
                                     <Link to={url}>{label}</Link>
                                 </li>
                             ))}
-                        </div>
+                        </ul>
                     </div>
                 ))}
             </div>
@@ -491,8 +491,7 @@ export function CohortEdit({ id, attachTo }: CohortEditProps): JSX.Element {
                                     </div>
                                 </div>
                             </SceneSection>
-                            {!isNewCohort &&
-                                usedIn && <UsedInBanner usedIn={usedIn} />}
+                            {!isNewCohort && usedIn && <UsedInBanner usedIn={usedIn} />}
                             {cohort.is_static && staticCohortMode === 'criteria' ? (
                                 <>
                                     <SceneDivider />
