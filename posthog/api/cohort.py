@@ -1180,9 +1180,6 @@ class CohortSerializer(serializers.ModelSerializer):
         return representation
 
 
-COHORT_USED_IN_PAGE_SIZE = 100
-
-
 def get_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
     """Return all non-deleted feature flags (active or inactive) that reference this cohort.
 
