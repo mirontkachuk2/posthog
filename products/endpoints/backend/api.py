@@ -10,7 +10,6 @@ and response serialization. Business logic lives in ``backend/services``:
 - ``services.validation``: request payload validation
 """
 
-import dataclasses
 import re
 import dataclasses
 

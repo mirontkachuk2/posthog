@@ -1,3 +1,4 @@
+from posthog.test.base import APIBaseTest, ClickhouseTestMixin
 from unittest import mock
 
 from django.test import SimpleTestCase
@@ -7,7 +8,6 @@ from rest_framework import status
 
 from posthog.api.test.test_log_entries import create_log_entry
 from posthog.models import Team
-from posthog.test.base import APIBaseTest, ClickhouseTestMixin
 
 from products.endpoints.backend.logs import ENDPOINTS_LOG_SOURCE, build_execution_message, log_endpoint_execution
 from products.endpoints.backend.tests.conftest import create_endpoint_with_version
