@@ -12,6 +12,7 @@ and response serialization. Business logic lives in ``backend/services``:
 
 import dataclasses
 import re
+import dataclasses
 
 from django.shortcuts import get_object_or_404
 
