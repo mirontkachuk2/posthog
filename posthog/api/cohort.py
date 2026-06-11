@@ -1180,55 +1180,9 @@ class CohortSerializer(serializers.ModelSerializer):
         return representation
 
 
-def get_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
-    """Return all non-deleted feature flags (active or inactive) that reference this cohort.
-
-    Used by the informational ``used_in`` endpoint — surfaces inactive flags too so users
-    are aware before flipping one back on. Excludes soft-deleted flags for consistency
-    with ``get_insights_using_cohort`` and ``get_cohorts_using_cohort``.
-    """
-    flags = _flags_with_cohort_filters(cohort)
-    seen_cohorts_cache: dict[int, CohortOrEmpty] = {}
-    return [flag for flag in flags if cohort.id in flag.get_cohort_ids(seen_cohorts_cache=seen_cohorts_cache)]
-
-
-def get_insights_using_cohort(cohort: Cohort) -> QuerySet[Insight]:
-    """Return insights that reference this cohort in their query filters or breakdown."""
-    return (
-        # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (parameterized via params)
-        Insight.objects.filter(
-            team_id=cohort.team_id,
-            deleted=False,
-        )
-        .extra(
-            where=[
-                """jsonb_path_exists(query, '$.** ? (@.type == "cohort" && @.value == %s)', '{"cohort_id": %s}'::jsonb)
-            OR (query->'source'->'breakdownFilter'->>'breakdown_type' = 'cohort'
-                AND query->'source'->'breakdownFilter'->'breakdown' @> '[%s]'::jsonb)"""
-            ],
-            params=[cohort.id, cohort.id, cohort.id],
-        )
-        .order_by("id")
-    )
-
-
-def get_cohorts_using_cohort(cohort: Cohort) -> QuerySet[Cohort]:
-    """Return other cohorts that include this cohort as criteria."""
-    return (
-        # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (parameterized via params)
-        Cohort.objects.filter(
-            team__project_id=cohort.team.project_id,
-            deleted=False,
-        )
-        .exclude(id=cohort.id)
-        .extra(
-            where=[
-                """jsonb_path_exists(filters, '$.** ? (@.type == "cohort" && @.value == %s)', '{"cohort_id": %s}'::jsonb)"""
-            ],
-            params=[cohort.id, cohort.id],
-        )
-        .order_by("id")
-    )
+def _used_in_block(page: list[dict], total: int) -> dict:
+    """Build one ``{results, total, has_more}`` block of the used_in response."""
+    return {"results": page, "total": total, "has_more": total > len(page)}
 
 
 def _truncate_used_in_queryset(qs: QuerySet) -> tuple[list[dict], int]:
@@ -1262,14 +1216,72 @@ def _flags_with_cohort_filters(cohort: Cohort) -> QuerySet[FeatureFlag]:
     )
 
 
+def _filter_flags_referencing_cohort(flags: QuerySet[FeatureFlag], cohort: Cohort) -> list[FeatureFlag]:
+    """Expand each flag's cohort references in Python and keep flags that reach this cohort.
+
+    Seeding the cache with the target cohort saves a point query for every flag that
+    references it directly.
+    """
+    seen_cohorts_cache: dict[int, CohortOrEmpty] = {cohort.id: cohort}
+    return [flag for flag in flags if cohort.id in flag.get_cohort_ids(seen_cohorts_cache=seen_cohorts_cache)]
+
+
 def get_active_flags_using_cohort(cohort: Cohort) -> list[FeatureFlag]:
     """Return active, non-deleted feature flags that reference this cohort.
 
-    Used by deletion protection — only live flags should block cohort deletion.
+    Used by deletion protection — only live flags should block cohort deletion. The
+    informational ``used_in`` endpoint runs the same expansion over all non-deleted
+    flags (active or inactive) so users are aware before flipping one back on.
     """
-    active_flags = _flags_with_cohort_filters(cohort).filter(active=True)
-    seen_cohorts_cache: dict[int, CohortOrEmpty] = {}
-    return [flag for flag in active_flags if cohort.id in flag.get_cohort_ids(seen_cohorts_cache=seen_cohorts_cache)]
+    return _filter_flags_referencing_cohort(_flags_with_cohort_filters(cohort).filter(active=True), cohort)
+
+
+def get_insights_using_cohort(cohort: Cohort) -> QuerySet[Insight]:
+    """Return insights that reference this cohort in their query filters or breakdown.
+
+    The LIKE guard is load-bearing: any insight the jsonpath or breakdown branch can
+    match necessarily contains the literal ``"cohort"`` in its query JSON, so the guard
+    is a strict superset that short-circuits the recursive (un-indexable) jsonpath for
+    insights mentioning no cohort at all. It also keeps the planner's row estimate
+    selective; without it, ORDER BY/LIMIT on large teams degrades to a whole-table
+    primary-key walk.
+    """
+    # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (parameterized via params)
+    return (
+        Insight.objects.filter(
+            team_id=cohort.team_id,
+            deleted=False,
+        )
+        .extra(
+            where=[
+                """query::text LIKE %s
+            AND (jsonb_path_exists(query, '$.** ? (@.type == "cohort" && @.value == %s)', '{"cohort_id": %s}'::jsonb)
+            OR (query->'source'->'breakdownFilter'->>'breakdown_type' = 'cohort'
+                AND query->'source'->'breakdownFilter'->'breakdown' @> '[%s]'::jsonb))"""
+            ],
+            params=['%"cohort"%', cohort.id, cohort.id, cohort.id],
+        )
+        .order_by("id")
+    )
+
+
+def get_cohorts_using_cohort(cohort: Cohort) -> QuerySet[Cohort]:
+    """Return other cohorts that include this cohort as criteria."""
+    # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (parameterized via params)
+    return (
+        Cohort.objects.filter(
+            team__project_id=cohort.team.project_id,
+            deleted=False,
+        )
+        .exclude(id=cohort.id)
+        .extra(
+            where=[
+                """jsonb_path_exists(filters, '$.** ? (@.type == "cohort" && @.value == %s)', '{"cohort_id": %s}'::jsonb)"""
+            ],
+            params=[cohort.id, cohort.id],
+        )
+        .order_by("id")
+    )
 
 
 @extend_schema_view(
@@ -1683,20 +1695,20 @@ class CohortViewSet(TeamAndOrgViewSetMixin, ForbidDestroyModel, viewsets.ModelVi
         )
 
     @extend_schema(responses=CohortUsedInResponseSerializer)
-    @action(methods=["GET"], detail=True, required_scopes=["cohort:read"])
+    @action(methods=["GET"], detail=True, required_scopes=["cohort:read", "feature_flag:read", "insight:read"])
     def used_in(self, request: request.Request, **kwargs) -> Response:
         cohort: Cohort = self.get_object()
         # Hide references the caller has been denied at the object level, matching the
         # access-level filtering on the flag/insight list endpoints.
         uac = self.user_access_control
 
-        flag_ids = [flag.id for flag in get_flags_using_cohort(cohort)]
+        # Access-filter before the Python-side expansion so denied flags are never
+        # loaded or expanded.
         flags_qs = uac.filter_queryset_by_access_level(
-            # nosemgrep: idor-lookup-without-team (flag_ids are already team-scoped via get_flags_using_cohort)
-            FeatureFlag.objects.filter(id__in=flag_ids),
-            include_all_if_admin=True,
+            _flags_with_cohort_filters(cohort), include_all_if_admin=True
         ).order_by("id")
-        flags_data = [{"id": flag.id, "key": flag.key, "name": flag.name} for flag in flags_qs]
+        flags = _filter_flags_referencing_cohort(flags_qs, cohort)
+        flags_data = [{"id": flag.id, "key": flag.key, "name": flag.name} for flag in flags]
 
         insights_qs = uac.filter_queryset_by_access_level(get_insights_using_cohort(cohort))
         insights_page, insights_total = _truncate_used_in_queryset(
@@ -1717,21 +1729,9 @@ class CohortViewSet(TeamAndOrgViewSetMixin, ForbidDestroyModel, viewsets.ModelVi
 
         return Response(
             {
-                "feature_flags": {
-                    "results": flags_data[:COHORT_USED_IN_PAGE_SIZE],
-                    "total": len(flags_data),
-                    "has_more": len(flags_data) > COHORT_USED_IN_PAGE_SIZE,
-                },
-                "insights": {
-                    "results": insights_data,
-                    "total": insights_total,
-                    "has_more": insights_total > len(insights_data),
-                },
-                "cohorts": {
-                    "results": cohorts_data,
-                    "total": cohorts_total,
-                    "has_more": cohorts_total > len(cohorts_data),
-                },
+                "feature_flags": _used_in_block(flags_data[:COHORT_USED_IN_PAGE_SIZE], len(flags_data)),
+                "insights": _used_in_block(insights_data, insights_total),
+                "cohorts": _used_in_block(cohorts_data, cohorts_total),
             }
         )
 
