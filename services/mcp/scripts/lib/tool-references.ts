@@ -47,7 +47,7 @@ type PhraseReference = { name: string; kind: ReferenceKind }
 
 function findPhraseReferences(text: string): PhraseReference[] {
     return [...text.matchAll(PHRASE_REFERENCE)].map((match) => ({
-        name: match[1],
+        name: match[1]!, // both groups always capture on a match
         kind: match[2] as ReferenceKind, // guaranteed by the `(tools?|skills?)` alternation
     }))
 }
@@ -56,14 +56,14 @@ function findInvocationReferences(text: string): string[] {
     const names: string[] = []
     for (const match of text.matchAll(INVOCATION_REFERENCE)) {
         if (!ENTITY_NOUN_AFTER.test(text.slice(match.index + match[0].length))) {
-            names.push(match[1])
+            names.push(match[1]!)
         }
     }
     return names
 }
 
 function findBacktickedSnakeCase(text: string): string[] {
-    return [...text.matchAll(SNAKE_CASE_REFERENCE)].map((match) => match[1])
+    return [...text.matchAll(SNAKE_CASE_REFERENCE)].map((match) => match[1]!)
 }
 
 function isValidReference(name: string, kind: ReferenceKind, toolNames: Set<string>, skillNames: Set<string>): boolean {
