@@ -214,7 +214,11 @@ def to_config(
                 # be set
                 assert field_type_meta
 
-                if field_nested_key in d:
+                if field_nested_key in d and isinstance(d[field_nested_key], dict):
+                    # Only recurse into a nested mapping. A non-dict value here (e.g. the
+                    # selection string of a flat union payload) would raise a TypeError that
+                    # gets swallowed below, silently dropping a required field. Mirror the
+                    # same guard `validate_config` uses so validation and parsing agree.
                     try:
                         value = to_config(config_type, d[field_nested_key], prefixes)
                     except TypeError:
