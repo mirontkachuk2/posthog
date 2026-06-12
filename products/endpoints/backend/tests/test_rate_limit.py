@@ -240,6 +240,8 @@ class TestIsMaterializedEndpointRequest(APIBaseTest):
         set_endpoint_materialization_ready(123, "test", True)
 
         request = MagicMock()
+        request.data = {}
+        request.query_params = {}
         view = MagicMock()
         view.team_id = 123
         view.kwargs = {"name": "test"}
@@ -284,6 +286,8 @@ class TestIsMaterializedEndpointRequest(APIBaseTest):
         self.assertIsNone(is_endpoint_materialization_ready(self.team.id, "lazy_endpoint"))
 
         request = MagicMock()
+        request.data = {}
+        request.query_params = {}
         view = MagicMock()
         view.team_id = self.team.id
         view.kwargs = {"name": "lazy_endpoint"}
@@ -354,6 +358,8 @@ class TestEndpointThrottles(APIBaseTest):
         ]:
             throttle = throttle_class()
             request = MagicMock()
+            request.data = {}
+            request.query_params = {}
             view = MagicMock()
             view.team_id = self.team.id
             view.kwargs = {"name": "mat_endpoint"}
