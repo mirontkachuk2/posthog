@@ -214,7 +214,14 @@ def to_config(
                 # be set
                 assert field_type_meta
 
-                if field_nested_key in d:
+                # Only recurse into a nested config when the value is actually a mapping.
+                # A scalar under this key (e.g. a flat payload where `auth_method` holds the
+                # select's value rather than a sub-object) must fall through to the flat
+                # handling below — mirroring `validate_config`, which guards the same way.
+                # Without this guard, indexing the scalar raises TypeError, the field is
+                # silently skipped, and the final `config_cls(**inputs)` blows up with a
+                # confusing "missing required positional argument".
+                if field_nested_key in d and isinstance(d[field_nested_key], dict):
                     try:
                         value = to_config(config_type, d[field_nested_key], prefixes)
                     except TypeError:

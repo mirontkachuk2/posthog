@@ -320,6 +320,47 @@ def test_to_config_union_nested_configs_with_alias():
     assert a_cfg.inner.a == "test"
 
 
+def test_to_config_nested_field_with_scalar_value_falls_back_to_flat():
+    # Regression: a flat payload where a nested-config field's own key holds a scalar
+    # (the select's value, e.g. Stripe's `auth_method`) used to crash `from_dict` with a
+    # "missing required positional argument" TypeError, even though `validate_dict` accepted
+    # it. `to_config` now mirrors `validate_config` and only recurses when the value is a dict,
+    # falling back to the flat-structure handling otherwise.
+
+    @config.config
+    class AuthMethod:
+        selection: typing.Literal["api_key", "oauth"] = "api_key"
+        secret_key: str | None = None
+
+    @config.config
+    class TestConfig(config.Config):
+        auth_method: AuthMethod
+        account_id: str | None = None
+
+    config_dict: dict[str, typing.Any] = {
+        "auth_method": "api_key",
+        "secret_key": "rk_live_x",
+        "account_id": "acct_123",
+    }
+
+    is_valid, errors = TestConfig.validate_dict(config_dict)
+    assert is_valid is True
+    assert errors == []
+
+    cfg = TestConfig.from_dict(config_dict)
+
+    assert isinstance(cfg.auth_method, AuthMethod)
+    assert cfg.auth_method.secret_key == "rk_live_x"
+    assert cfg.account_id == "acct_123"
+
+    # A properly nested payload keeps working identically.
+    nested = TestConfig.from_dict(
+        {"auth_method": {"selection": "api_key", "secret_key": "rk_live_x"}, "account_id": "acct_123"}
+    )
+    assert nested.auth_method.secret_key == "rk_live_x"
+    assert nested.account_id == "acct_123"
+
+
 def test_validate_dict():
     @config.config
     class TestConfig(config.Config):
