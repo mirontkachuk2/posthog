@@ -457,7 +457,7 @@ class EndpointExecutionService(PydanticModelMixin):
                 )
             execution_status = "success"
         except (ExposedHogQLError, ExposedCHQueryError) as e:
-            execution_status = "error"
+            execution_status = "user_error"
             error_label = getattr(e, "code_name", None) or type(e).__name__
             logger.exception(
                 "Endpoint execution failed",
@@ -466,7 +466,7 @@ class EndpointExecutionService(PydanticModelMixin):
             )
             raise ValidationError("Query execution failed.", getattr(e, "code_name", None))
         except HogVMException:
-            execution_status = "error"
+            execution_status = "user_error"
             error_label = "HogVMException"
             logger.exception(
                 "Endpoint execution failed (HogVM)",
@@ -474,7 +474,7 @@ class EndpointExecutionService(PydanticModelMixin):
             )
             raise ValidationError("Query execution failed: HogQL virtual machine error")
         except ResolutionError:
-            execution_status = "error"
+            execution_status = "user_error"
             error_label = "ResolutionError"
             logger.exception(
                 "Endpoint resolution failed",
@@ -497,7 +497,7 @@ class EndpointExecutionService(PydanticModelMixin):
                 ENDPOINT_EXECUTION_TOTAL.labels(
                     execution_type=execution_type, query_kind=query_kind_metric, status=execution_status
                 ).inc()
-            if execution_status == "error":
+            if execution_status in ("error", "user_error"):
                 log_endpoint_execution(
                     team_id=self.team.pk,
                     endpoint_id=str(endpoint.id),
