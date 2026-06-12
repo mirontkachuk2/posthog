@@ -3,8 +3,11 @@
  * or "load the X skill" must point at an existing tool/skill. Name-level only: this cannot
  * validate documented schemas or tool behavior.
  *
- * Used by scripts/lint-tool-names.ts; the skills lint (products/posthog_ai/scripts/
- * build_skills.py) mirrors these rules for skill markdown.
+ * Used by scripts/lint-tool-names.ts. The skills lint (products/posthog_ai/scripts/
+ * build_skills.py) implements the same rules for skill markdown, plus one deliberately
+ * skills-only rule: call-syntax references like `read_data("experiments", id)` occur
+ * only in skill prose, and detecting them here would false-positive on SDK/HogQL code
+ * examples in tool descriptions.
  */
 
 export type Violation = { source: string; tool: string; reason: string }

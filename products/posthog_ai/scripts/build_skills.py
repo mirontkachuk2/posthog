@@ -93,6 +93,8 @@ _INVOCATION_REFERENCE_RE = re.compile(
 # A noun right after the backticked name means it's not a tool reference ("via the `x` feature flag").
 _ENTITY_NOUN_RE = re.compile(r"\s+(?:feature|flag|event|property|properties|column|field|table|key|filter)s?\b")
 # Backticked call syntax, e.g. `read_data("experiments", id)` — tool invocations written as calls.
+# Deliberately skills-only (no equivalent in tool-references.ts): call-style references occur only
+# in skill prose, and the SDK/HogQL allowlist entries above exist to absorb this rule's false positives.
 _CALL_REFERENCE_RE = re.compile(r"`([a-z0-9]+(?:[_-][a-z0-9]+)+)\(")
 # Backticked snake_case whose kebab form is a real tool — wrong casing.
 _SNAKE_CASE_REFERENCE_RE = re.compile(r"`([a-z0-9]+(?:_[a-z0-9]+)+)`")
