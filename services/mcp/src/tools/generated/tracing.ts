@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Schemas } from '@/api/generated'
 import {
     TracingSpansAggregateCreateBody,
+    TracingSpansAttributeBreakdownCreateBody,
     TracingSpansAttributesRetrieveQueryParams,
     TracingSpansCountCreateBody,
     TracingSpansDurationHistogramCreateBody,
@@ -98,6 +99,27 @@ const apmSpansAggregate = (): ToolBase<typeof ApmSpansAggregateSchema, unknown> 
         const result = await context.api.request<unknown>({
             method: 'POST',
             path: `/api/projects/${encodeURIComponent(String(projectId))}/tracing/spans/aggregate/`,
+            body,
+        })
+        const filtered = pickResponseFields(result, ['results', 'compare']) as typeof result
+        return filtered
+    },
+})
+
+const ApmAttributeBreakdownSchema = TracingSpansAttributeBreakdownCreateBody
+
+const apmAttributeBreakdown = (): ToolBase<typeof ApmAttributeBreakdownSchema, unknown> => ({
+    name: 'apm-attribute-breakdown',
+    schema: ApmAttributeBreakdownSchema,
+    handler: async (context: Context, params: z.infer<typeof ApmAttributeBreakdownSchema>) => {
+        const projectId = await context.stateManager.getProjectId()
+        const body: Record<string, unknown> = {}
+        if (params.query !== undefined) {
+            body['query'] = params.query
+        }
+        const result = await context.api.request<unknown>({
+            method: 'POST',
+            path: `/api/projects/${encodeURIComponent(String(projectId))}/tracing/spans/attribute-breakdown/`,
             body,
         })
         const filtered = pickResponseFields(result, ['results', 'compare']) as typeof result
@@ -243,6 +265,7 @@ export const GENERATED_TOOLS: Record<string, () => ToolBase<ZodObjectAny>> = {
     'apm-attributes-list': apmAttributesList,
     'apm-services-list': apmServicesList,
     'apm-spans-aggregate': apmSpansAggregate,
+    'apm-attribute-breakdown': apmAttributeBreakdown,
     'apm-spans-count': apmSpansCount,
     'apm-spans-duration-histogram': apmSpansDurationHistogram,
     'apm-spans-sparkline': apmSpansSparkline,

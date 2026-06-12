@@ -35,6 +35,7 @@ from posthog.schema import (
     SpanTreeNode,
     TraceSpansAggregationQuery,
     TraceSpansAggregationQueryResponse,
+    TraceSpansAttributeBreakdownQuery,
     TraceSpansTreeQuery,
     TraceSpansTreeQueryResponse,
 )
@@ -78,7 +79,7 @@ class _SpanAggregationMixin:
     # with the narrower concrete type; the runtime attribute values come from `QueryRunner`
     # initialization on the concrete class, not from this mixin.
     if TYPE_CHECKING:
-        query: TraceSpansAggregationQuery | TraceSpansTreeQuery
+        query: TraceSpansAggregationQuery | TraceSpansTreeQuery | TraceSpansAttributeBreakdownQuery
         team: "Team"
         modifiers: HogQLQueryModifiers
         timings: HogQLTimings

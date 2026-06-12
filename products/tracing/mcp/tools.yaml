@@ -87,6 +87,22 @@ tools:
             include:
                 - results
                 - compare
+    apm-attribute-breakdown:
+        operation: tracing_spans_attribute_breakdown_create
+        enabled: true
+        scopes:
+            - tracing:read
+        annotations:
+            readOnly: true
+            destructive: false
+            idempotent: true
+        title: Break down spans by attribute value
+        description_file: ./prompts/apm-attribute-breakdown.md
+        feature_flag: tracing
+        response:
+            include:
+                - results
+                - compare
     apm-spans-count:
         operation: tracing_spans_count_create
         enabled: true
